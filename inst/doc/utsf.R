@@ -21,7 +21,7 @@ head(f$features) # and its associated features
 
 ## -----------------------------------------------------------------------------
 t <- ts(c(1, 3, 6, 7, 9, 11, 16))
-out <- forecast(t, h = 3, lags = c(1, 2, 4), preProcess = NULL)
+out <- forecast(t, h = 3, lags = c(1, 2, 4), preProcess = list(trend("none")))
 cbind(out$features, Target = out$targets)
 
 ## -----------------------------------------------------------------------------
@@ -41,7 +41,7 @@ predict.my_knn <- function(object, new_value) {
 }
 
 f <- forecast(AirPassengers, h = 12, lags = 1:12, method = my_knn_model)
-print(f$pred)
+f$pred
 autoplot(f)
 
 ## -----------------------------------------------------------------------------
@@ -58,18 +58,7 @@ predict.my_knn2 <- function(object, new_value) {
 }
 
 f2 <- forecast(AirPassengers, h = 12, lags = 1:12, method = my_knn_model2)
-print(f2$pred)
-
-## -----------------------------------------------------------------------------
-set.seed(7)
-t <- 1:15 + rnorm(15, sd = 0.5) # time series
-my_lm <- function(X, y) lm(y ~ ., data = data.frame(cbind(X, y = y)))
-f <- forecast(t, h = 5, lags = 1, method = my_lm, preProcess = NULL)
-library(ggplot2)
-autoplot(f)
-
-## -----------------------------------------------------------------------------
-f$model
+f2$pred
 
 ## -----------------------------------------------------------------------------
 # A bagging model set with default parameters
@@ -104,12 +93,16 @@ f <- forecast(AirPassengers, h = 12,
 print(f$model$k)
 
 ## -----------------------------------------------------------------------------
-f <- forecast(UKgas, h = 4, lags = 1:4, method = "knn", efa = "fixed")
+f <- forecast(UKgas, h = 4, lags = 1:4, method = "knn", efa = evaluation("normal", size = 8))
 f$efa 
 
 ## -----------------------------------------------------------------------------
+evaluation("normal", size = 10) # The last 10 observations are used as test set
+evaluation("normal", prop = 0.2) # The last 20% part of the series is used as test set
+
+## -----------------------------------------------------------------------------
 f <- forecast(UKgas, h = 4, lags = 1:4, method = "knn", 
-              tuneGrid = expand.grid(k = 1:7), efa = "fixed")
+              tuneGrid = expand.grid(k = 1:7), efa = evaluation("normal", size = 4))
 f$tuneGrid 
 
 ## -----------------------------------------------------------------------------
@@ -120,36 +113,36 @@ f$pred
 plot(f$tuneGrid$k, f$tuneGrid$RMSE, type = "o", pch = 19, xlab = "k (number of nearest neighbors)", ylab = "RMSE", main = "Estimated accuracy")
 
 ## -----------------------------------------------------------------------------
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = NULL)
+f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(trend("none")))
 autoplot(f)
 
 ## -----------------------------------------------------------------------------
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(differences(1)))
+f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(trend("differences", 1)))
 autoplot(f)
 
 ## -----------------------------------------------------------------------------
 # The order of first differences is estimated using the ndiffs function
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(differences(-1)))
+f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(trend("differences", -1)))
 f$differences
 
 ## -----------------------------------------------------------------------------
 timeS <- ts(c(1, 3, 7, 9, 10, 12))
-f <- forecast(timeS, h = 1, lags = 1:2, preProcess = NULL)
+f <- forecast(timeS, h = 1, lags = 1:2, preProcess = list(trend("none")))
 cbind(f$features, Targets = f$targets)
 
 ## -----------------------------------------------------------------------------
 timeS <- ts(c(1, 3, 7, 9, 10, 12))
-f <- forecast(timeS, h = 1, lags = 1:2, preProcess = list("additive"))
+f <- forecast(timeS, h = 1, lags = 1:2, preProcess = list(trend("additive")))
 cbind(f$features, Targets = f$targets)
 
 ## -----------------------------------------------------------------------------
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list("additive"))
+f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf")
 autoplot(f)
 
 ## -----------------------------------------------------------------------------
 t <- ts(10 * 1.05^(1:20))
-f_m <- forecast(t, h = 4, lags = 1:3, method = "rf", preProcess = list("multiplicative"))
-f_a <- forecast(t, h = 4, lags = 1:3, method = "rf", preProcess = list("additive"))
+f_m <- forecast(t, h = 4, lags = 1:3, method = "rf", preProcess = list(trend("multiplicative")))
+f_a <- forecast(t, h = 4, lags = 1:3, method = "rf", preProcess = list(trend("additive")))
 library(vctsfr)
 plot_predictions(t, predictions = list(Multiplicative = f_m$pred, Additive = f_a$pred))
 

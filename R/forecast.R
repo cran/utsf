@@ -8,6 +8,9 @@
 #'The functions used to build and train the model are:
 #' * KNN: In this case no model is built and the function [FNN::knn.reg()] is
 #'used to predict the future values of the time series.
+#' * Linear models: Function [stats::lm()] to build the model and the method
+#'[stats::predict.lm()] associated with the trained model to forecast the future
+#'values of the time series.
 #' * Regression trees: Function [rpart::rpart()] to build the model and the
 #'method [rpart::predict.rpart()] associated with the trained model to forecast
 #'the future values of the time series.
@@ -30,10 +33,11 @@
 #'@param method A string indicating the method used for training and
 #'  forecasting. Allowed values are:
 #'   * `"knn"`: k-nearest neighbors (the default)
+#'   * `"lm"`: linear regression
 #'   * `"rt"`: regression trees
 #'   * `"mt"`:  model trees
 #'   * `"bagging"`
-#'   * `"rf"`: random forest.
+#'   * `"rf"`: random forests.
 #'
 #'  See details for a brief explanation of the models. It is also possible to
 #'  use your own regression model, in that case a function explaining how to
@@ -42,21 +46,15 @@
 #'  the model. If the default value (`NULL`) is provided, the model is fitted
 #'  with its default parameters. See details for the functions used to train the
 #'  models.
-#'@param efa A character value indicating the kind of method used to estimate
-#'  the forecast accuracy of the model using the time series. If the default
-#'  value (`NULL`) is provided, no estimation is done. Possible values are
-#'  `"rolling"` and `"fixed"`, indicating if rolling or fixed origin evaluation
-#'  is done. To estimate forecast accuracy the last `h` values of the time
-#'  series are used as test set and the previous values as training set.
+#'@param efa It is used to indicate how to estimate the forecast accuracy of the
+#'  model using the last observations of the time series as test set. If the
+#'  default value (`NULL`) is provided, no estimation is done. To specify the
+#'  size of the test set the [evaluation()] function must be used.
 #'
 #'@param preProcess A list indicating the preprocessings or transformations.
 #'  Currently, the length of the list must be 1 (only one preprocessing). If
-#'  `NULL` no preprocessing is applied. The element of the list is a character
-#'  value indicating what transformation is applied. By default (`"additive"`)
-#'  an additive transformation is done. It is also possible a multiplicative
-#'  transformation (`"multiplicative"`). These transformations are recommended
-#'  if the time series has a trend. Also, taking differences is allowed using
-#'  the [differences()] function.
+#'  `NULL` the additive transformation is applied to the series. The element of
+#'  the list is created with the [trend()] function.
 #'
 #'@param tuneGrid A data frame with possible tuning values. The columns are
 #'  named the same as the tuning parameters. The estimation of forecast accuracy
@@ -103,7 +101,7 @@
 #' forecast(AirPassengers, h = 12, method = my_knn_model)$pred
 #'
 #' ## Estimating forecast accuracy of the model
-#' f <- forecast(UKgas, h = 4, lags = 1:4, method = "rf", efa = "rolling")
+#' f <- forecast(UKgas, h = 4, lags = 1:4, method = "rf", efa = evaluation("minimum"))
 #' f$efa
 #'
 #' ## Estimating forecast accuracy of different tuning parameters
@@ -112,7 +110,7 @@
 #'
 #' ## Forecasting a trending series
 #' # Without any preprocessing or transformation
-#' f <- forecast(airmiles, h = 4, method = "knn", preProcess = NULL)
+#' f <- forecast(airmiles, h = 4, method = "knn", preProcess = list(trend("none")))
 #' autoplot(f)
 #'
 #' # Applying the additive transformation (default)
@@ -125,7 +123,7 @@ forecast <- function(timeS,
                      param = NULL,
                      efa = NULL,
                      tuneGrid = NULL,
-                     preProcess = list("additive")) {
+                     preProcess = NULL) {
   # Check timeS parameter
   if (! (stats::is.ts(timeS) || is.vector(timeS, mode = "numeric")))
     stop("timeS parameter should be of class ts or a numeric vector")
@@ -137,12 +135,8 @@ forecast <- function(timeS,
     stop("h parameter should be an integer scalar value >= 1")
   
   # Check preProcess parameter
-  if (! (is.null(preProcess) ||
-         is.list(preProcess) && length(preProcess) == 1 && 
-         is.character(preProcess[[1]]) &&
-         preProcess[[1]] %in% c("additive", "multiplicative") ||
-         is.list(preProcess) && length(preProcess) == 1 && 
-         inherits(preProcess[[1]],"fd_preprocessing")))
+  if (! (is.null(preProcess) || 
+         is.list(preProcess) && length(preProcess) == 1 && inherits(preProcess[[1]], "trend")))
     stop("parameter preProcess must be NULL or a list of length 1 with a valid value")
 
     # Check lags parameter
@@ -176,7 +170,7 @@ forecast <- function(timeS,
     stop("parameter method cannot be a vector")
   if (! class(method) %in% c("function", "character"))
     stop("parameter method should be a function or a string")
-  if (inherits(method, "character") && !(method %in% c("knn", "rt", "mt", "bagging", "rf")))
+  if (inherits(method, "character") && !(method %in% c("knn", "lm", "rt", "mt", "bagging", "rf")))
     stop(paste("parameter method: method", method, "not supported"))
   
   # Check param parameter
@@ -184,10 +178,19 @@ forecast <- function(timeS,
     stop("param argument should be a list")
   
   # Check efa parameter
-  if (! (is.null(efa) || 
-        (is.character(efa) && length(efa) == 1 && efa %in% c("fixed", "rolling"))))
-    stop("parameter efa should be NULL, \"fixed\" or \"rolling\"")
-
+  if (!(is.null(efa) || inherits(efa, "evaluation")))
+    stop("parameter efa should be NULL or created with function evaluation()")
+  if (inherits(efa, "evaluation") && efa$type == "normal" && !is.null(efa$size) && efa$size < h)
+    stop("The size of the test set cannot be lower than h")
+  if (inherits(efa, "evaluation") && efa$type == "normal" && !is.null(efa$size) && 
+      efa$size >= length(timeS)-1)
+    stop("The size of the test set is too large")
+  if (inherits(efa, "evaluation") && efa$type == "normal" && !is.null(efa$prop)) {
+    size = trunc(length(timeS)*efa$prop)
+    if (size < h)
+      stop(paste0("The size of the test set (", size, ") cannot be lower than h\n"))
+  }
+    
   # Check tuneGrid parameter
   if (! (is.null(tuneGrid) || is.data.frame(tuneGrid)))
     stop("parameter tuneGrid should be NULL or a data frame")
@@ -197,8 +200,8 @@ forecast <- function(timeS,
     stop("either param or tuneGrid parameter should be NULL")
   
   # Create training set and targets / transformations / preprocessing
-  if (what_preprocess(preProcess) == "fd") {
-    preprocessing_fd <- fd_preprocessing(timeS, preProcess[[1]])
+  if (what_preprocess(preProcess) == "differences") {
+    preprocessing_fd <- fd_preprocessing(timeS, preProcess[[1]]$n)
     if (preprocessing_fd$differences == 0) {
       out <- build_examples(timeS, rev(lagsc))
     } else {
@@ -213,6 +216,11 @@ forecast <- function(timeS,
                              function(row) out$features[row, ] - means[row])
       out$features <- as.data.frame(t(out$features))
       out$targets <- out$targets - means
+      # means <- rowMeans(out$features[, 1:length(lagsc)])
+      # out$features[ , 1:length(lagsc)] <- sapply(1:nrow(out$features),
+      #                        function(row) out$features[row, 1:length(lagsc)] - means[row])
+      # out$features <- as.data.frame(out$features)
+      # out$targets <- out$targets - means
     } else if (what_preprocess(preProcess) == "multiplicative") {
       means <- rowMeans(out$features)
       out$features <- sapply(1:nrow(out$features),
@@ -222,7 +230,6 @@ forecast <- function(timeS,
     }
   }
   if (!is.data.frame(out$features)) out$features <- as.data.frame(out$features)
-  
   # Add other information to the output object
   out$call <- match.call()
   out$ts <- timeS
@@ -257,10 +264,9 @@ forecast <- function(timeS,
   class(out) <- "utsf"
   # Prediction
   out$pred <- recursive_prediction(out, h = h)
-  if (what_preprocess(preProcess) == "fd" && preprocessing_fd$differences > 0) {
+  if (what_preprocess(preProcess) == "differences" && preprocessing_fd$differences > 0) {
     out$pred <- fd_unpreprocessing(out$pred, preprocessing_fd)
   }
-    
   # Estimate forecast accuracy
   if (!is.null(efa) && is.null(tuneGrid)){
     out$efa <- estimate_accuracy(timeS = timeS, 
@@ -275,12 +281,11 @@ forecast <- function(timeS,
   out
 }
 
-# return the value associated with preprocessing: "NULL", "additive, 
-# "multiplicative" or "fd"
+# return the value associated with preprocessing: "none", "additive, 
+# "multiplicative" or "differences"
 what_preprocess <- function(preProcess) {
-  if (is.null(preProcess)) return("NULL")
-  if (inherits(preProcess[[1]],"fd_preprocessing")) return("fd")
-  return(preProcess[[1]])
+  if (is.null(preProcess)) return("additive")
+  return(preProcess[[1]]$type)
 }
 
 # @param object S3 object of class utsf
@@ -288,12 +293,15 @@ predict_one_value_transforming <- function(object, example) {
   if (what_preprocess(object$preProcess) == "additive") {
     mean_ <- mean(example)
     example <- example - mean_
+    # mean_ <- mean(head(example, length(object$lags))) # añadido
+    # example[seq_along(object$lags)] <- example[seq_along(object$lags)] - mean_ # añadido
   } else if (what_preprocess(object$preProcess) == "multiplicative") {
     mean_ <- mean(example)
     example <- example / mean_
   }
   example <- as.data.frame(matrix(example, ncol = length(example)))
   colnames(example) <- colnames(object$features)
+  # print(example)
   if (inherits(object$method,"character")) {
     r <- stats::predict(object, example)
   } else {

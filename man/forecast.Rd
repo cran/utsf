@@ -12,7 +12,7 @@ forecast(
   param = NULL,
   efa = NULL,
   tuneGrid = NULL,
-  preProcess = list("additive")
+  preProcess = NULL
 )
 }
 \arguments{
@@ -29,10 +29,11 @@ suitable vector is chosen.}
 forecasting. Allowed values are:
 \itemize{
 \item \code{"knn"}: k-nearest neighbors (the default)
+\item \code{"lm"}: linear regression
 \item \code{"rt"}: regression trees
 \item \code{"mt"}:  model trees
 \item \code{"bagging"}
-\item \code{"rf"}: random forest.
+\item \code{"rf"}: random forests.
 }
 
 See details for a brief explanation of the models. It is also possible to
@@ -44,12 +45,10 @@ the model. If the default value (\code{NULL}) is provided, the model is fitted
 with its default parameters. See details for the functions used to train the
 models.}
 
-\item{efa}{A character value indicating the kind of method used to estimate
-the forecast accuracy of the model using the time series. If the default
-value (\code{NULL}) is provided, no estimation is done. Possible values are
-\code{"rolling"} and \code{"fixed"}, indicating if rolling or fixed origin evaluation
-is done. To estimate forecast accuracy the last \code{h} values of the time
-series are used as test set and the previous values as training set.}
+\item{efa}{It is used to indicate how to estimate the forecast accuracy of the
+model using the last observations of the time series as test set. If the
+default value (\code{NULL}) is provided, no estimation is done. To specify the
+size of the test set the \code{\link[=evaluation]{evaluation()}} function must be used.}
 
 \item{tuneGrid}{A data frame with possible tuning values. The columns are
 named the same as the tuning parameters. The estimation of forecast accuracy
@@ -60,12 +59,8 @@ all the historical values of the time series.}
 
 \item{preProcess}{A list indicating the preprocessings or transformations.
 Currently, the length of the list must be 1 (only one preprocessing). If
-\code{NULL} no preprocessing is applied. The element of the list is a character
-value indicating what transformation is applied. By default (\code{"additive"})
-an additive transformation is done. It is also possible a multiplicative
-transformation (\code{"multiplicative"}). These transformations are recommended
-if the time series has a trend. Also, taking differences is allowed using
-the \code{\link[=differences]{differences()}} function.}
+\code{NULL} the additive transformation is applied to the series. The element of
+the list is created with the \code{\link[=trend]{trend()}} function.}
 }
 \value{
 An S3 object of class \code{utsf}, basically a list with, at least, the
@@ -94,6 +89,9 @@ The functions used to build and train the model are:
 \itemize{
 \item KNN: In this case no model is built and the function \code{\link[FNN:knn.reg]{FNN::knn.reg()}} is
 used to predict the future values of the time series.
+\item Linear models: Function \code{\link[stats:lm]{stats::lm()}} to build the model and the method
+\code{\link[stats:predict.lm]{stats::predict.lm()}} associated with the trained model to forecast the future
+values of the time series.
 \item Regression trees: Function \code{\link[rpart:rpart]{rpart::rpart()}} to build the model and the
 method \code{\link[rpart:predict.rpart]{rpart::predict.rpart()}} associated with the trained model to forecast
 the future values of the time series.
@@ -131,7 +129,7 @@ predict.my_knn <- function(object, new_value) {
 forecast(AirPassengers, h = 12, method = my_knn_model)$pred
 
 ## Estimating forecast accuracy of the model
-f <- forecast(UKgas, h = 4, lags = 1:4, method = "rf", efa = "rolling")
+f <- forecast(UKgas, h = 4, lags = 1:4, method = "rf", efa = evaluation("minimum"))
 f$efa
 
 ## Estimating forecast accuracy of different tuning parameters
@@ -140,7 +138,7 @@ f$tuneGrid
 
 ## Forecasting a trending series
 # Without any preprocessing or transformation
-f <- forecast(airmiles, h = 4, method = "knn", preProcess = NULL)
+f <- forecast(airmiles, h = 4, method = "knn", preProcess = list(trend("none")))
 autoplot(f)
 
 # Applying the additive transformation (default)

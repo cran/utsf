@@ -71,7 +71,7 @@ Using the example of the previous section:
 
 ```{r}
 t <- ts(c(1, 3, 6, 7, 9, 11, 16))
-out <- forecast(t, h = 3, lags = c(1, 2, 4), preProcess = NULL)
+out <- forecast(t, h = 3, lags = c(1, 2, 4), preProcess = list(trend("none")))
 cbind(out$features, Target = out$targets)
 ```
 
@@ -80,7 +80,9 @@ cbind(out$features, Target = out$targets)
 The `forecast()` function provides a common interface to applying an autoregressive approach for time series forecasting using different regression models. These models are implemented in several R packages. Currently, the `forecast()` function is mainly focused on regression tree models, supporting the following approaches:
 
 * k-nearest neighbors: In this case no model is trained and the function `FNN::knn.reg()` is used, as regression function, to recursively predict the future values of the time series.
-* Regression trees: The model is trained using the function `rpart::rpart()` and its associated method `rpart::predict.rpart()` is applied recursively for the forecasts, i.e., as regression function.
+* Linear models: The model is trained using the function `stats::lm()` and its associated method 
+`stats::predict.lm()` is applied recursively for the forecasts, i.e., as regression function.
+* Regression trees: The model is trained using the function `rpart::rpart()` and its associated method `rpart::predict.rpart()` is used for the forecasts.
 * Model trees: The model is trained with the function `Cubist::cubist()` and its associated method `Cubist::predict.cubist()` is used for predictions.
 * Bagging: The model is trained with the function `ipred::bagging()` and its
   associated method `ipred::predict.regbagg()` is used for forecasting.
@@ -97,7 +99,7 @@ In this case, the model is the result of training a regression tree  using the f
 
 # Using your own models
 
-One interesting feature of the **utsf** package is that you can use the `forecast()` function to apply your own regression models for time series forecasting in an autoregressive way. Thus, your regression models can benefit from the features implemented in the `forecast()` function, such as preprocessing, parameter tuning, the building of the training set, the implementation of recursive forecasts or the estimation of the forecast accuracy of the model.
+An interesting feature of the **utsf** package is that you can use the `forecast()` function to apply your own regression models for time series forecasting in an autoregressive way. Thus, your regression models can benefit from the features implemented in the `forecast()` function, such as preprocessing, parameter tuning, the building of the training set, the implementation of recursive forecasts or the estimation of the forecast accuracy of the model.
 
 To apply your own regression model with the `forecast()` function you have to use the `method` parameter, providing a function that is able to train your model. This function should return an object with the trained regression model. Also, it must have at least two input parameters:
 
@@ -121,13 +123,13 @@ predict.my_knn <- function(object, new_value) {
 }
 
 f <- forecast(AirPassengers, h = 12, lags = 1:12, method = my_knn_model)
-print(f$pred)
+f$pred
 autoplot(f)
 ```
 
-The `new_value` parameter of the `predict` method receives a data frame with the same structure as the `X` parameter of the function for building the model. The `new_value ` data frame only has one row, with the features of the example to be predicted.
+The `new_value` parameter of the `predict` method receives a data frame with the same structure as the `X` parameter of the function for building the model. The `new_value` data frame has only one row, with the features of the example to be predicted.
 
-The k-nearest neighbors algorithm is so simple that it can be easily implemented without using functionality of any R package:
+The k-nearest neighbors algorithm is so simple that it can be easily implemented without using functionality from any R package:
 
 ```{r}
 # Function to train the regression model
@@ -143,27 +145,8 @@ predict.my_knn2 <- function(object, new_value) {
 }
 
 f2 <- forecast(AirPassengers, h = 12, lags = 1:12, method = my_knn_model2)
-print(f2$pred)
+f2$pred
 ```
-
-Finally, we are going to forecast an artificial time series with a trend by means of a simple linear regression model.
-
-```{r}
-set.seed(7)
-t <- 1:15 + rnorm(15, sd = 0.5) # time series
-my_lm <- function(X, y) lm(y ~ ., data = data.frame(cbind(X, y = y)))
-f <- forecast(t, h = 5, lags = 1, method = my_lm, preProcess = NULL)
-library(ggplot2)
-autoplot(f)
-```
-
-In this case,  we rely on the `predict.lm` method to predict new values. Let us see, the model:
-
-```{r}
-f$model
-```
-
-The forecast of a future value is computed as $0.7914 + 1.0251Lag1$, where `Lag1` is the previous value to the future value being forecast.
 
 # Setting the parameters of the regression models
 
@@ -212,11 +195,11 @@ print(f$model$k)
 This section explains how to estimate the forecast accuracy of a regression model predicting a time series with the **utsf** package. Let us see an example:
 
 ```{r}
-f <- forecast(UKgas, h = 4, lags = 1:4, method = "knn", efa = "fixed")
+f <- forecast(UKgas, h = 4, lags = 1:4, method = "knn", efa = evaluation("normal", size = 8))
 f$efa 
 ```
 
-To assess the forecast accuracy of a regression model you can use the `forecast()` function to specify the regression task, using the `efa` parameter to choose how the forecast accuracy is estimated. In this case a k- nearest neighbors model is used (`model = "knn"`) with the autoregressive lags 1 to 4 and an estimation of its forecast accuracy on the `UKgas` time series for a forecast horizon of 4 (`h = 4`) is obtained using a fixed origin strategy. The result of this estimation can be found in the `efa` component of the object returned by the `forecast()` function. It is a vector with estimates of forecast errors according to different forecast accuracy measures. For instance, in the example, the estimated mean absolute error (MAE) for horizon 4 is 49.3 approximately. Currently, the following forecasting accuracy measures are computed:
+To assess the forecast accuracy of a regression model you can use the `forecast()` function to specify the regression task, using the `efa` parameter to choose how the forecast accuracy is estimated. In this case a k-nearest neighbors model is used (`model = "knn"`) with the autoregressive lags 1 to 4 and an estimation of its forecast accuracy on the `UKgas` time series for a forecast horizon of 4 (`h = 4`) is obtained using a fixed origin strategy. The result of this estimation can be found in the `efa` component of the object returned by the `forecast()` function. It is a vector with estimates of forecast errors according to different forecast accuracy measures. For instance, in the example, the estimated mean absolute error (MAE) for horizon 4 is 43.1 approximately. Currently, the following forecasting accuracy measures are computed:
 
 * MAE: mean absolute error
 * MAPE: mean absolute percentage error
@@ -240,22 +223,24 @@ $$
 RMSE = \sqrt{\frac{1}{h}\sum_{t=1}^{h} (y_t-\hat{y}_t)^2}
 $$
 
-The `efa` parameter can be:
+The `efa` parameter is created with the `evaluation()` function. The estimation of forecast accuracy is done with rolling origin evaluation. The last observations of the time series are used as test set using the rolling origin technique. The number of observations conforming the test set can be specified as follows:
 
-* `"fixed"`: In that case a fixed origin evaluation is followed to estimate the forecast error. The test set is formed by the last `h` observations of the time series and the training set is formed by its previous values.
-* `"rolling"`: The rolling origin strategy is applied. First, rolling origin uses a test set formed by the last `h` historical values and a training set consisting of the previous historical values. This procedure is repeated $h -1$ times, moving the origin of the test set one value ahead each time. This way, `h` one step ahead predictions can be assessed, $h - 1$ two steps ahead predictions, and so on. This is a great contrast with the fixed origin evaluation that, for a validation set of size `h`, is only able to assess one prediction for each one of the `h` horizons. However, rolling origin evaluation is more computationally intensive than fixed origin evaluation.
+```{r}
+evaluation("normal", size = 10) # The last 10 observations are used as test set
+evaluation("normal", prop = 0.2) # The last 20% part of the series is used as test set
+```
 
 # Parameter tuning
 
-Another useful feature of the **utsf** package is parameter tuning. The `forecast()` function allows to estimate the forecast accuracy of a model using different combinations of parameters. Furthermore, the best combination of parameters is used to train the model with all the historical values of the series and forecast the future values of the series. Let us see an example:
+Another useful feature of the **utsf** package is parameter tuning. The `forecast()` function allows you to estimate the forecast accuracy of a model using different combinations of parameters. Furthermore, the best combination of parameters is used to train a model with all the historical values of the series and the model is applied for forecasting the future values of the series. Let us see an example:
 
 ```{r}
 f <- forecast(UKgas, h = 4, lags = 1:4, method = "knn", 
-              tuneGrid = expand.grid(k = 1:7), efa = "fixed")
+              tuneGrid = expand.grid(k = 1:7), efa = evaluation("normal", size = 4))
 f$tuneGrid 
 ```
 
-In this example, the `tuneGrid` parameter is used to specify (using a data frame) the set of parameters to assess. The forecast accuracy of the model using the different combinations of parameters is estimated as explained in the previous section using the last observations of the time series as validation set. The `efa` parameter is used to specify whether fixed or rolling origin evaluation is applied. The `tuneGrid` component of the object returned by the `forecast()` function contains the result of the estimation. In this case, the k-nearest neighbors method using $k=1$ obtains the best results for all the forecast accuracy measures. The best combination of parameters according to RMSE is used to forecast the time series:
+In this example, the `tuneGrid` parameter is used to specify (using a data frame) the set of parameters to assess. The forecast accuracy of the model for the different combinations of parameters is estimated as explained in the previous section using the last observations of the time series as validation set. The `efa` parameter is used to specify the size of the test set. The `tuneGrid` component of the object returned by the `forecast()` function contains the result of the estimation. In this case, the k-nearest neighbors method using $k=1$ obtains the best results for all the forecast accuracy measures. The best combination of parameters according to RMSE is used to forecast the time series:
 
 ```{r}
 f$param
@@ -273,34 +258,34 @@ plot(f$tuneGrid$k, f$tuneGrid$RMSE, type = "o", pch = 19, xlab = "k (number of n
 Sometimes, the forecast accuracy of a model can be improved by applying some transformations and/or preprocessings to the time series being forecast. Currently, the **utsf** package is focused on preprocessings related to forecasting time series with a trend. This is due to the fact that, at present, the models incorporated in the `forecast()` function (such as regression trees and k-nearest neighbors) predict averages of the targets in the training set (i.e., an average of historical values of the series). In a trended series these averages are probably outside the range of the future values of the series. Let us see an example in which a trended series (the yearly revenue passenger miles flown by commercial airlines in the United States) is forecast using a random forest model:
 
 ```{r}
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = NULL)
+f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(trend("none")))
 autoplot(f)
 ```
 
-In this case, no preprocessing is applied (`preProcess = NULL`). It can be observed how the forecast does not capture the trending behavior of the series because regression tree models predict averaged values of the training targets.
+In this case, no preprocessing is applied (`preProcess = list(trend("none"))`). It can be observed how the forecast does not capture the trending behavior of the series because regression tree models predict averaged values of the training targets.
 
 In the next subsections we explain how to deal with trended series using three different transformations.
 
 ## Differencing
 
-A common way of dealing with trended series is to transform the original series taking first differences (computing the differences between consecutive observations). Then, the model is trained with the differenced series and the forecast are back-tranformed. Let us see an example:
+A common way of dealing with trended series is to transform the original series taking first differences (computing the differences between consecutive observations). Then, the model is trained with the differenced series and the forecasts are back-transformed. Let us see an example:
 
 ```{r}
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(differences(1)))
+f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(trend("differences", 1)))
 autoplot(f)
 ```
 
-In this case, the `preProcess` parameter has been used to specify first-order differences. The `preProcess` parameter consists of a list of preprocessings or transformations. Currently, only one preprocessing can be specified. The differences are specified using the `differences()` function. This function takes one parameter with the order of first differences (normally 1). It is also possible to specify the value -1, in which case the order of differences is estimated using the `ndiffs()` function from the **forecast** package (in that case the chosen order of first differences could be 0, that is, no differences are applied).
+In this case, the `preProcess` parameter has been used to specify first-order differences. The `preProcess` parameter consists of a list of preprocessings or transformations. Currently, only one preprocessing can be specified. The order of first differences is specified with the second parameter of the `trend()` function (normally 1). It is also possible to specify the value -1, in which case the order of differences is estimated using the `ndiffs()` function from the **forecast** package (in that case the chosen order of first differences could be 0, that is, no differences are applied).
 
 ```{r}
 # The order of first differences is estimated using the ndiffs function
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(differences(-1)))
+f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(trend("differences", -1)))
 f$differences
 ```
 
 ## The additive transformation
 
-This transformation has been used to deal with trending series  in other packages, such as **tsknn** and **tsfgrnn**. The additive transformation works transforming the training examples as follows:
+This transformation has been used to deal with trending series in other packages, such as **tsknn** and **tsfgrnn**. The additive transformation works transforming the training examples as follows:
 
 * A vector of features is transformed by subtracting the mean of the vector.
 * The target associated with a vector of features is transformed by subtracting from it the mean of its associated vector of features.
@@ -310,7 +295,7 @@ It is easy to check how the training examples are modified by the additive trans
 
 ```{r}
 timeS <- ts(c(1, 3, 7, 9, 10, 12))
-f <- forecast(timeS, h = 1, lags = 1:2, preProcess = NULL)
+f <- forecast(timeS, h = 1, lags = 1:2, preProcess = list(trend("none")))
 cbind(f$features, Targets = f$targets)
 ```
 
@@ -318,16 +303,18 @@ Now, let us see the effect of the additive transformation in the training exampl
 
 ```{r}
 timeS <- ts(c(1, 3, 7, 9, 10, 12))
-f <- forecast(timeS, h = 1, lags = 1:2, preProcess = list("additive"))
+f <- forecast(timeS, h = 1, lags = 1:2, preProcess = list(trend("additive")))
 cbind(f$features, Targets = f$targets)
 ```
 
-Finally, we forecast the airmiles series using the additive tranformation and a random forest model:
+Finally, we forecast the airmiles series using the additive transformation and a random forest model:
 
 ```{r}
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list("additive"))
+f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf")
 autoplot(f)
 ```
+
+In this last code snippet we have used the default value of `preProcess`, because it applies the additive transformation.
 
 ## The multiplicative transformation
 
@@ -341,8 +328,8 @@ Let us see an example of an artificial time series with a multiplicative trend a
 
 ```{r}
 t <- ts(10 * 1.05^(1:20))
-f_m <- forecast(t, h = 4, lags = 1:3, method = "rf", preProcess = list("multiplicative"))
-f_a <- forecast(t, h = 4, lags = 1:3, method = "rf", preProcess = list("additive"))
+f_m <- forecast(t, h = 4, lags = 1:3, method = "rf", preProcess = list(trend("multiplicative")))
+f_a <- forecast(t, h = 4, lags = 1:3, method = "rf", preProcess = list(trend("additive")))
 library(vctsfr)
 plot_predictions(t, predictions = list(Multiplicative = f_m$pred, Additive = f_a$pred))
 ```

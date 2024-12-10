@@ -10,10 +10,10 @@ print.utsf <- function (x, ...) {
   )
   cat("Autoregressive lags:", x$lags, "\n")
   if (what_preprocess(x$preProcess) %in% c("additive", "multiplicative")) {
-    cat (x$preProcess[[1]], "tranformation applied\n")
+    cat (what_preprocess(x$preProcess), "tranformation applied.\n")
   }
-  if (what_preprocess(x$preProcess) == "fd") {
-    cat("First differences applied as preprocessing.", nd2character(x$fd), "\n")
+  if (what_preprocess(x$preProcess) == "differences") {
+    cat("First differences applied as preprocessing.", nd2character(x$differences), "\n")
   }
   cat("Regression model: ")
   if (inherits(x$method, "function")) {
@@ -21,6 +21,8 @@ print.utsf <- function (x, ...) {
   } else {
     method <-  switch(x$method,
                       "knn" = "k-nearest neighbors",
+                      "lm" = "linear model",
+                      "rt" = "regression trees",
                       "mt" = "model trees",
                       "rf" = "random forest",
                       "bagging" = "bagging"
@@ -37,6 +39,9 @@ print.utsf <- function (x, ...) {
   }  else if (!is.null(x$tuneGrid)) {
     cat("Estimated average forecast accuracy for different combinations of tuning parameters:\n")
     print(x$tuneGrid)
+    minimum <- which.min(x$tuneGrid$RMSE)
+    cat("\nBest combination according to RMSE:\n")
+    print(x$tuneGrid[minimum, ])
   }
   invisible(x)
 }
@@ -67,6 +72,8 @@ print.summary.utsf <- function (x, ...) {
   } else {
     method <-  switch(x$method,
                       "knn" = "k-nearest neighbors",
+                      "lm" = "linear model",
+                      "rt" = "regression trees",
                       "mt" = "model trees",
                       "rf" = "random forest",
                       "bagging" = "bagging"
