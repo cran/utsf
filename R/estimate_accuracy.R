@@ -9,6 +9,17 @@ estimate_accuracy <- function(timeS, h, lags, method, param, preProcess, type) {
     } else {
       size <- if (!is.null(type$size)) type$size else trunc(type$prop*length(timeS))
     }
+    if (!is.null(lags) && max(lags) >= length(timeS)-size) {
+      warning("Time series is too short to estimate forecast accuracy")
+      return(NULL)
+    }
+    if (method == "knn" && !is.null(lags)) {
+      k <- if ("k" %in% names(param)) param[["k"]] else 3
+      if (length(timeS)-size-max(lags) < k) {
+        warning("Time series is too short to estimate forecast accuracy")
+        return(NULL)
+      }
+    }
     test_sets <- matrix(NA, nrow = size - h + 1, ncol = h)
     predictions <- test_sets
     row <- 1
@@ -21,6 +32,17 @@ estimate_accuracy <- function(timeS, h, lags, method, param, preProcess, type) {
       row <- row + 1
     }
   } else { # type$type is minimum
+    if (!is.null(lags) && max(lags) >= length(timeS)-h) {
+      warning("Time series is too short to estimate forecast accuracy")
+      return(NULL)
+    }
+    if (method == "knn" && !is.null(lags)) {
+      k <- if ("k" %in% names(param)) param[["k"]] else 3
+      if (length(timeS)-h-max(lags) < k) {
+        warning("Time series is too short to estimate forecast accuracy")
+        return(NULL)
+      }
+    }
     test_sets <- matrix(NA, nrow = h, ncol = h)
     predictions <- test_sets
     for (hor in 1:h) {
@@ -32,16 +54,21 @@ estimate_accuracy <- function(timeS, h, lags, method, param, preProcess, type) {
     }
   }
   errors <- test_sets - predictions
-  v <- rep(0, 4)
-  v[1] <- colMeans(abs(errors), na.rm = TRUE) |> mean()
-  f <- colMeans(100*abs((test_sets - predictions) / test_sets), na.rm = TRUE)
-  v[2] <- mean(f)
-  f <- colMeans(abs(test_sets - predictions) / (abs(test_sets)+abs(predictions))*200,
+  global <- rep(0, 4)
+  efa_per_horizon <- matrix(0, nrow = 4, ncol = h)
+  rownames(efa_per_horizon) <- c("MAE", "MAPE", "sMAPE", "RMSE")
+  colnames(efa_per_horizon) <- paste("Horizon", 1:h)
+  efa_per_horizon["MAE", ] <- colMeans(abs(errors), na.rm = TRUE)
+  global[1] <- mean(efa_per_horizon["MAE", ])
+  efa_per_horizon["MAPE", ] <- colMeans(100*abs((test_sets - predictions) / test_sets), na.rm = TRUE)
+  global[2] <- mean(efa_per_horizon["MAPE", ])
+  efa_per_horizon["sMAPE", ] <- colMeans(abs(test_sets - predictions) / (abs(test_sets)+abs(predictions))*200,
                 na.rm = TRUE)
-  v[3] <- mean(f)
-  v[4] <- colMeans(errors^2, na.rm = TRUE) |> mean() |> sqrt()
-  names(v) <- c("MAE", "MAPE", "sMAPE", "RMSE")
-  v
+  global[3] <- mean(efa_per_horizon["sMAPE", ])
+  efa_per_horizon["RMSE", ] <- sqrt(colMeans(errors^2, na.rm = TRUE))
+  global[4] <- mean(efa_per_horizon["RMSE", ])
+  names(global) <- c("MAE", "MAPE", "sMAPE", "RMSE")
+  list(global_efa = global, efa_per_horizon = efa_per_horizon)
 }
 
 training_test <- function(timeS, n) {
@@ -77,7 +104,8 @@ training_test2 <- function(timeS, position, test_set_size) {
 #'   forecast accuracy.
 #' @param size An integer. It is the size of the test set (how many of the last
 #'   observations of the time series are used as test set). It can only be used
-#'   when the type parameter is `"normal"`.
+#'   when the type parameter is `"normal"`. By default, it is the length of the
+#'   forecasting horizon.
 #' @param prop A numeric value in the range (0, 1). It is the proportion of the
 #'   time series used as test set. It can only be used when the type parameter
 #'   is `"normal"`.

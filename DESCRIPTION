@@ -1,6 +1,6 @@
 Package: utsf
 Title: Univariate Time Series Forecasting
-Version: 1.1.0
+Version: 1.2.0
 Authors@R: c(
     person("Maria Pilar", "Frias-Bustamante", , "mpfrias@ujaen.es", role = "aut",
            comment = c(ORCID = "0000-0001-6886-0953")),
@@ -26,10 +26,10 @@ Encoding: UTF-8
 RoxygenNote: 7.3.2
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2024-12-10 11:02:17 UTC; UJA
-Author: Maria Pilar Frias-Bustamante [aut]
-    (<https://orcid.org/0000-0001-6886-0953>),
-  Francisco Martinez [aut, cre, cph]
-    (<https://orcid.org/0000-0002-5206-1898>)
+Packaged: 2025-05-19 07:07:38 UTC; UJA
+Author: Maria Pilar Frias-Bustamante [aut] (ORCID:
+    <https://orcid.org/0000-0001-6886-0953>),
+  Francisco Martinez [aut, cre, cph] (ORCID:
+    <https://orcid.org/0000-0002-5206-1898>)
 Repository: CRAN
-Date/Publication: 2024-12-10 11:10:02 UTC
+Date/Publication: 2025-05-19 07:20:02 UTC

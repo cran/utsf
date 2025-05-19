@@ -94,11 +94,14 @@ print(f$model$k)
 
 ## -----------------------------------------------------------------------------
 f <- forecast(UKgas, h = 4, lags = 1:4, method = "knn", efa = evaluation("normal", size = 8))
-f$efa 
+f$global_efa 
 
 ## -----------------------------------------------------------------------------
 evaluation("normal", size = 10) # The last 10 observations are used as test set
 evaluation("normal", prop = 0.2) # The last 20% part of the series is used as test set
+
+## -----------------------------------------------------------------------------
+f$efa_per_horizon
 
 ## -----------------------------------------------------------------------------
 f <- forecast(UKgas, h = 4, lags = 1:4, method = "knn", 

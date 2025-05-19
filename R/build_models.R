@@ -1,6 +1,11 @@
 build_model <- function(X, y, method, param) {
   if (method == "knn") {
     k <- if ("k" %in% names(param)) param[["k"]] else 3
+    if (length(y) < k) {
+      m <- paste("It is not possible to use the method KNN with k =", k,
+                 "and a training set of size", length(y))
+      stop(m)
+    }
     model <- paste0("K-nearest neighbors with k = ", k)
   } else if (method == "lm") {
     args <- list(formula = y ~ ., data = data.frame(cbind(X, y = y)))
@@ -26,6 +31,7 @@ build_model <- function(X, y, method, param) {
     df <- cbind(X, targets = y)
     args <- list(formula = targets ~ .,
                  data = df,
+                 oob.error = FALSE,
                  mtry = floor((ncol(df)-1)/3)
     )
     args <- args[!(names(args) %in% names(param))]
