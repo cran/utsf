@@ -8,7 +8,8 @@ knitr::opts_chunk$set(
 library(utsf)
 
 ## -----------------------------------------------------------------------------
-f <- forecast(AirPassengers, h = 12, lags = 1:12, method = "rt")
+m <- create_model(AirPassengers, lags = 1:12, method = "rt")
+f <- forecast(m, h = 12)
 
 ## -----------------------------------------------------------------------------
 f$pred
@@ -16,17 +17,24 @@ library(ggplot2)
 autoplot(f)
 
 ## -----------------------------------------------------------------------------
-head(f$targets)  # first targets
-head(f$features) # and its associated features
+head(m$targets)  # first targets
+head(m$features) # and its associated features
 
 ## -----------------------------------------------------------------------------
 t <- ts(c(1, 3, 6, 7, 9, 11, 16))
-out <- forecast(t, h = 3, lags = c(1, 2, 4), preProcess = list(trend("none")))
+out <- create_model(t, lags = c(1, 2, 4), preProcess = list(trend("none")))
 cbind(out$features, Target = out$targets)
 
 ## -----------------------------------------------------------------------------
-f <- forecast(fdeaths, h = 12, lags = 1:12, method = "rt")
-f$model
+m <- create_model(USAccDeaths, method = "mt")
+f <- forecast(m, h = 12, PI = TRUE, level = 90)
+f
+library(ggplot2)
+autoplot(f)
+
+## -----------------------------------------------------------------------------
+m <- create_model(fdeaths, lags = 1:12, method = "rt")
+m$model
 
 ## -----------------------------------------------------------------------------
 # Function to train the regression model
@@ -36,11 +44,12 @@ my_knn_model <- function(X, y, k = 3) {
 
 # Function to predict a new example
 predict.my_knn <- function(object, new_value) {
-  FNN::knn.reg(train = object$X, test = new_value, 
+  FNN::knn.reg(train = object$X, test = new_value,
                y = object$y, k = object$k)$pred
 }
 
-f <- forecast(AirPassengers, h = 12, lags = 1:12, method = my_knn_model)
+m <- create_model(AirPassengers, lags = 1:12, method = my_knn_model)
+f <- forecast(m, h = 12)
 f$pred
 autoplot(f)
 
@@ -57,20 +66,20 @@ predict.my_knn2 <- function(object, new_value) {
   mean(object$y[k_nearest])
 }
 
-f2 <- forecast(AirPassengers, h = 12, lags = 1:12, method = my_knn_model2)
-f2$pred
+m2 <- create_model(AirPassengers, lags = 1:12, method = my_knn_model2)
+forecast(m2, h = 12)$pred
 
 ## -----------------------------------------------------------------------------
 # A bagging model set with default parameters
-f <- forecast(AirPassengers, h = 12, lags = 1:12, method = "bagging")
-length(f$model$mtrees) # number of regression trees (25 by default)
+m <- create_model(AirPassengers, lags = 1:12, method = "bagging")
+length(m$model$mtrees) # number of regression trees (25 by default)
 # A bagging model set with 3 regression tress
-f <- forecast(AirPassengers, h = 12, 
-              lags = 1:12, 
-              method = "bagging", 
+m2 <- create_model(AirPassengers,
+              lags = 1:12,
+              method = "bagging",
               param = list(nbagg = 3)
 )
-length(f$model$mtrees) # number of regression trees
+length(m2$model$mtrees) # number of regression trees
 
 ## -----------------------------------------------------------------------------
 # Function to train the model
@@ -80,72 +89,105 @@ my_knn_model <- function(X, y, k = 3) {
 
 # Regression function for object of class my_knn
 predict.my_knn <- function(object, new_value) {
-  FNN::knn.reg(train = object$X, test = new_value, 
+  FNN::knn.reg(train = object$X, test = new_value,
                y = object$y, k = object$k)$pred
 }
 
 # The model is trained with default parameters (k = 3)
-f <- forecast(AirPassengers, h = 12, lags = 1:12,  method = my_knn_model)
-print(f$model$k)
+m <- create_model(AirPassengers, lags = 1:12,  method = my_knn_model)
+print(m$model$k)
 # The model is trained with k = 5
-f <- forecast(AirPassengers, h = 12, 
-              method = my_knn_model, param = list(k = 5))
-print(f$model$k)
+m2 <- create_model(AirPassengers, method = my_knn_model, param = list(k = 5))
+print(m2$model$k)
 
 ## -----------------------------------------------------------------------------
-f <- forecast(UKgas, h = 4, lags = 1:4, method = "knn", efa = evaluation("normal", size = 8))
-f$global_efa 
+m <- create_model(UKgas, lags = 1:4, method = "knn")
+r <- efa(m, h = 4, type = "normal", size = 8)
+r$per_horizon
+r$global
+
+## ----out.width = '85%', echo = FALSE------------------------------------------
+knitr::include_graphics("ro_normal.png")
+
+## ----eval = FALSE-------------------------------------------------------------
+# m <- create_model(UKgas, lags = 1:4, method = "knn")
+# # Use the last 9 observations of the series to build test sets
+# r1 <- efa(m, h = 4, type = "normal", size = 9)
+# # Use the last 20% observations of the series to build test sets
+# r2 <- efa(m, h = 4, type = "normal", prop = 0.2)
 
 ## -----------------------------------------------------------------------------
-evaluation("normal", size = 10) # The last 10 observations are used as test set
-evaluation("normal", prop = 0.2) # The last 20% part of the series is used as test set
+m <- create_model(UKgas, lags = 1:4, method = "knn")
+r <- efa(m, h = 4, type = "minimum")
+r$per_horizon
+r$global
+
+## ----out.width = '85%', echo = FALSE------------------------------------------
+knitr::include_graphics("ro_minimum.png")
 
 ## -----------------------------------------------------------------------------
-f$efa_per_horizon
+timeS <- ts(1:25)
+m <- create_model(timeS, lags = 1:3, method = "mt")
+r <- efa(m, h = 5, size = 7)
+r$test_sets
+r$predictions
 
 ## -----------------------------------------------------------------------------
-f <- forecast(UKgas, h = 4, lags = 1:4, method = "knn", 
-              tuneGrid = expand.grid(k = 1:7), efa = evaluation("normal", size = 4))
-f$tuneGrid 
+timeS <- ts(1:25)
+m <- create_model(timeS, lags = 1:3, method = "mt")
+r <- efa(m, h = 3, type = "minimum")
+r$test_sets
+r$predictions
 
 ## -----------------------------------------------------------------------------
-f$param
-f$pred 
+m <- create_model(UKgas, lags = 1:4, method = "knn")
+r <- tune_grid(m, h = 4, tuneGrid = expand.grid(k = 1:7), type = "normal", size = 8)
+# To see the estimated forecast accuracy with the different configurations
+r$tuneGrid
 
 ## -----------------------------------------------------------------------------
-plot(f$tuneGrid$k, f$tuneGrid$RMSE, type = "o", pch = 19, xlab = "k (number of nearest neighbors)", ylab = "RMSE", main = "Estimated accuracy")
+r$best
+r$forecast
 
 ## -----------------------------------------------------------------------------
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(trend("none")))
+plot(r$tuneGrid$k, r$tuneGrid$RMSE, type = "o", pch = 19, xlab = "k (number of nearest neighbors)", ylab = "RMSE", main = "Estimated accuracy")
+
+## -----------------------------------------------------------------------------
+m <- create_model(airmiles, lags = 1:4, method = "rf", preProcess = list(trend("none")))
+f <- forecast(m, h = 4)
 autoplot(f)
 
 ## -----------------------------------------------------------------------------
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(trend("differences", 1)))
+m <- create_model(airmiles, lags = 1:4, method = "rf", preProcess = list(trend("differences", 1)))
+f <- forecast(m, h = 4)
 autoplot(f)
 
 ## -----------------------------------------------------------------------------
 # The order of first differences is estimated using the ndiffs function
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf", preProcess = list(trend("differences", -1)))
-f$differences
+m <- create_model(airmiles, lags = 1:4, method = "rf", preProcess = list(trend("differences", 1)))
+m$differences
 
 ## -----------------------------------------------------------------------------
 timeS <- ts(c(1, 3, 7, 9, 10, 12))
-f <- forecast(timeS, h = 1, lags = 1:2, preProcess = list(trend("none")))
-cbind(f$features, Targets = f$targets)
+m <- create_model(timeS, lags = 1:2, preProcess = list(trend("none")))
+cbind(m$features, Targets = m$targets)
 
 ## -----------------------------------------------------------------------------
 timeS <- ts(c(1, 3, 7, 9, 10, 12))
-f <- forecast(timeS, h = 1, lags = 1:2, preProcess = list(trend("additive")))
-cbind(f$features, Targets = f$targets)
+m <- create_model(timeS, lags = 1:2, preProcess = list(trend("additive")))
+cbind(m$features, Targets = m$targets)
 
 ## -----------------------------------------------------------------------------
-f <- forecast(airmiles, h = 4, lags = 1:4, method = "rf")
+m <- create_model(airmiles, lags = 1:4, method = "rf")
+f <- forecast(m, h = 4)
 autoplot(f)
 
 ## -----------------------------------------------------------------------------
 t <- ts(10 * 1.05^(1:20))
-f_m <- forecast(t, h = 4, lags = 1:3, method = "rf", preProcess = list(trend("multiplicative")))
-f_a <- forecast(t, h = 4, lags = 1:3, method = "rf", preProcess = list(trend("additive")))
+m_m <- create_model(t, lags = 1:3, method = "rf", preProcess = list(trend("multiplicative")))
+f_m <- forecast(m_m, h = 4)
+m_a <- create_model(t, lags = 1:3, method = "rf", preProcess = list(trend("additive")))
+f_a <- forecast(m_a, h = 4)
 library(vctsfr)
 plot_predictions(t, predictions = list(Multiplicative = f_m$pred, Additive = f_a$pred))
 

@@ -1,6 +1,24 @@
+# utsf 1.3.0
+
+* The lags argument in the function for building the model (now create_model) 
+  now can be an unordered integer vector.
+* The lags argument in the function for building the model (now create_model) 
+  now must be an integer vector.
+* match.arg() is used so the options are visible to the user in the help.  
+* A main change is that the functionality of the forecast function, that did
+  a lot of things, is now distributed in several functions: create_model()
+  (build the model), forecast() (do the forecasts), efa() for assessing
+  forecast accuracy and tune_grid() for parameter tuning.
+* Prediction intervals are optionally computed.
+  
+# utsf 1.2.1
+
+* The default value of parameter transform_features in trend function is
+  again TRUE.
+
 # utsf 1.2.0
 
-* The estimated forecast accuracy per horizon is also computed
+* The estimated forecast accuracy per horizon is also computed.
 * Now it is possible to use only 1 lag with additive or multiplicative
   transformation, if the features are not transformed.
 * Now it is possible to transform only the target (and not the features) 
@@ -14,7 +32,7 @@
 # utsf 1.1.0
 
 * Improvements in estimation of forecast accuracy with rolling origin evaluation.
-* The way in which preprocessings are specified has changed.
+* The way in which pre-processings are specified has changed.
 * Method plot.utsf is implemented.
 * Linear models (stats::lm) are supported.
 
