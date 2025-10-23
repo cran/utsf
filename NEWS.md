@@ -1,3 +1,10 @@
+# utsf 1.3.1
+
+* The pre-processing for dealing with trending series is now specified in a 
+  simpler way.
+* The vignette has been improved.
+* The way in which tuning parameters are specified to user's models has changed.
+
 # utsf 1.3.0
 
 * The lags argument in the function for building the model (now create_model) 
